@@ -14,6 +14,9 @@ Please read the LICENSE file distributed with this software.
 What is Shiva?
 ==============
 
+There is a nice article publised on Mozilla Hacks about Shiva:
+`Shiva: More than a RESTful API to your music collection <https://hacks.mozilla.org/2013/03/shiva-more-than-a-restful-api-to-your-music-collection/>`_.
+
 * An API to your music.
 * A music player.
 * A music collection organizer.
@@ -166,7 +169,7 @@ Client
 * `Shiva-Client <https://github.com/tooxie/shiva-client>`_.
 
 A web-based front-end built as a single page application using HTML5
-technologies. It includes its own test web server so you need not to install
+technologies. It includes its own test web server so you don't need to install
 one.
 
 Or you can also build your own client and put your own ideas into practice. I
