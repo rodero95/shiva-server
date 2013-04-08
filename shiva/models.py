@@ -105,7 +105,7 @@ class Track(db.Model):
     pk = db.Column(db.Integer, primary_key=True)
     path = db.Column(db.Unicode(256), unique=True, nullable=False)
     title = db.Column(db.String(128))
-    slug = db.Column(db.String(128), unique=True)
+    slug = db.Column(db.String(128))
     bitrate = db.Column(db.Integer)
     file_size = db.Column(db.Integer)
     # TODO could be float if number weren't converted to an int in metadata manager
@@ -128,8 +128,8 @@ class Track(db.Model):
         if isinstance(path, file):
             _path = path.name
 
-        self.set_path(_path)
         self._meta = None
+        self.set_path(_path)
 
     def __setattr__(self, attr, value):
         if attr == 'title':
@@ -158,6 +158,7 @@ class Track(db.Model):
         """Return a MetadataManager object."""
         if not getattr(self, '_meta', None):
             self._meta = MetadataManager(self.get_path())
+
         return self._meta
 
     def __repr__(self):

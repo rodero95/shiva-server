@@ -30,5 +30,18 @@ MIMETYPES = {
         },
     },
 }
+VALID_FILE_EXTENSIONS = (
+    'asf', 'wma',  # ASF
+    'flac',  # FLAC
+    'mp4', 'm4a', 'm4b', 'm4p',  # M4A
+    'ape',  # Monkey's Audio
+    'mp3',  # MP3
+    'mpc', 'mp+', 'mpp',  # Musepack
+    'spx',  # Ogg Speex
+    'ogg', 'oga',  # Ogg Vorbis / Theora
+    'tta',  # True Audio
+    'wv',  # WavPack
+    'ofr',  # OptimFROG
+)
 # Here you can redefine anything you set in your settings.project file, like
 # the database URI.

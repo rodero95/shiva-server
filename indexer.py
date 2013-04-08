@@ -15,28 +15,27 @@ Options:
     -q --quiet    Suppress warnings.
 """
 # K-Pg
-import logging
 from datetime import datetime
+import logging
 import os
 import sys
 
+from docopt import docopt
+
 from shiva import models as m
 from shiva.app import app, db
-from shiva.utils import MetadataManager
 
 q = db.session.query
 
 
 class Indexer(object):
-    def __init__(self, config=None, use_lastfm=False, no_metadata=False, reindex=False,
-                       verbose=False, quiet=False):
+    def __init__(self, config=None, use_lastfm=False, no_metadata=False,
+                 reindex=False, verbose=False, quiet=False):
         self.config = config
         self.use_lastfm = use_lastfm
         self.no_metadata = no_metadata
         self.verbose = verbose
         self.quiet = quiet
-
-        self.track_count = 0
 
         self.session = db.session
         self.media_dirs = config.get('MEDIA_DIRS', [])
@@ -58,11 +57,8 @@ class Indexer(object):
                   'know where to look for.')
 
         if reindex:
-            models = [m.Artist, m.Album, m.Track, m.Lyrics]
-            for model in models:
-                print('Deleting all rows from {} model...'.format(model.__name__))
-                model.query.delete()
-            self.session.commit()
+            db.drop_all()
+            db.create_all()
 
     def get_artist(self, name):
         if name in self.artists:
@@ -123,15 +119,16 @@ class Indexer(object):
         full_path = self.file_path.decode('utf-8')
 
         track = m.Track(full_path)
+        self.set_metadata_reader(track)
         if self.no_metadata:
             self.session.add(track)
             if self.verbose:
-                print 'Added track without metadata: %s' % full_path
+                print('Added track without metadata: %s' % full_path)
             return
         else:
             if q(m.Track).filter_by(path=full_path).count():
                 if self.verbose:
-                    print 'Skipped existing track: %s' % full_path
+                    print('Skipped existing track: %s' % full_path)
                 return
 
         meta = self.get_metadata_reader()
@@ -147,18 +144,13 @@ class Indexer(object):
         self.session.add(track)
 
         if self.verbose:
-            print 'Added track: %s' % full_path
-
-        self.track_count += 1
-        if self.track_count % 10 == 0:
-            self.session.commit()
-            if self.verbose:
-                print 'Writing to database...'
+            print('Added track: %s' % full_path)
 
     def get_metadata_reader(self):
-        if not self._meta or self._meta.origpath != self.file_path:
-            self._meta = MetadataManager(self.file_path)
         return self._meta
+
+    def set_metadata_reader(self, track):
+        self._meta = track.get_metadata_reader()
 
     def is_track(self):
         """Try to guess whether the file is a valid track or not."""
@@ -169,10 +161,11 @@ class Indexer(object):
             return False
 
         ext = self.file_path.rsplit('.', 1)[1]
-        if ext not in self.get_metadata_reader().VALID_FILE_EXTENSIONS:
+        if ext not in app.config.get('VALID_FILE_EXTENSIONS', []):
             if not self.quiet:
                 msg = 'Skipped file with unknown file extension: %s'
-                print msg % self.file_path
+                print(msg % self.file_path)
+
             return False
 
         return True
@@ -194,14 +187,34 @@ class Indexer(object):
                     if self.is_track():
                         self.save_track()
 
+    # SELECT pk, slug, COUNT(*) FROM tracks GROUP BY slug HAVING COUNT(*) > 1;
+    def make_slugs_unique(self):
+        from sqlalchemy import func
+
+        query = q(m.Track).group_by(m.Track.slug).\
+            having(func.count(m.Track.slug) > 1)
+
+        # FIXME: Tengo el mismo problema con artistas y albumes, van a haber
+        # slugs repetidos pero en esos casos en vez de hacerlos únicos hay que
+        # unificarlos en uno solo y actualizar todos los tracks que apunten a
+        # ese. Lo mismo con los artistas.
+        for _track in query:
+            slug = _track.slug
+            for track in q(m.Track).filter_by(slug=slug):
+                track.slug += '-%s' % track.pk
+                self.session.add(track)
+
+        self.session.commit()
+
     def run(self):
         for mobject in self.media_dirs:
             for mdir in mobject.get_valid_dirs():
                 self.walk(mdir)
 
+        self.make_slugs_unique()
+
 
 if __name__ == '__main__':
-    from docopt import docopt
     arguments = docopt(__doc__)
 
     kwargs = {
@@ -216,8 +229,8 @@ if __name__ == '__main__':
         kwargs['use_lastfm'] = False
 
     if kwargs['use_lastfm'] and not app.config.get('LASTFM_API_KEY'):
-        sys.stderr.write('ERROR: You need a Last.FM API key if you set the --lastfm '
-              'flag.\n')
+        sys.stderr.write('ERROR: You need a Last.FM API key if you set the '
+                         '--lastfm flag.\n')
         sys.exit(1)
 
     lola = Indexer(app.config, **kwargs)
@@ -225,4 +238,6 @@ if __name__ == '__main__':
 
     # Petit performance hack: Every track will be added to the session but they
     # will be written down to disk only once, at the end.
+    if self.verbose:
+        print('Writing to database...')
     lola.session.commit()
